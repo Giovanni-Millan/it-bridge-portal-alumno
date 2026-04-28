@@ -1,0 +1,286 @@
+import React, { useState, useEffect } from "react";
+import logo from "./../../assets/logo.png";
+import Swal from "sweetalert2";
+import { supabase } from "../../supabaseClient";
+import { Eye, EyeOff, LogIn, Key, Mail, GraduationCap, AlertCircle } from "lucide-react";
+
+export default function Login() {
+  const [correo, setCorreo] = useState("");
+  const [contrasena, setContrasena] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [emailError, setEmailError] = useState("");
+
+  // Expresión regular: debe comenzar con "alu." y luego cualquier carácter, luego @ y dominio válido
+  const emailPattern = /^alu\..+@.+\..+$/;
+
+  // Validar correo en tiempo real
+  const validateEmail = (email) => {
+    if (!email) {
+      setEmailError("");
+      return false;
+    }
+    if (!emailPattern.test(email)) {
+      setEmailError("El correo debe comenzar con 'alu.' (ejemplo: alu.gabrielamacarior@itbridge.edu.mx)");
+      return false;
+    }
+    setEmailError("");
+    return true;
+  };
+
+  const handleEmailChange = (e) => {
+    const newEmail = e.target.value;
+    setCorreo(newEmail);
+    validateEmail(newEmail);
+  };
+
+  useEffect(() => {
+    const savedEmail = localStorage.getItem("rememberedEmail");
+    if (savedEmail) {
+      setCorreo(savedEmail);
+      validateEmail(savedEmail);
+      setRememberMe(true);
+    }
+  }, []);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    // Validación del correo antes de enviar
+    if (!validateEmail(correo)) {
+      Swal.fire({
+        icon: "warning",
+        title: "Correo no válido",
+        text: "El correo debe comenzar con 'alu.' (ejemplo: alu.tunombre@itbridge.edu.mx)",
+        confirmButtonColor: "#6b21a5",
+      });
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: correo.trim(),
+        password: contrasena,
+      });
+
+      if (error) {
+        console.error("SUPABASE LOGIN ERROR:", error);
+        if (error.message.toLowerCase().includes("email not confirmed")) {
+          Swal.fire({
+            icon: "warning",
+            title: "Correo no confirmado",
+            text: "Confirma tu correo antes de iniciar sesión.",
+            confirmButtonColor: "#6b21a5",
+          });
+          return;
+        }
+        Swal.fire({
+          icon: "error",
+          title: "Error de autenticación",
+          text: error.message,
+          confirmButtonColor: "#6b21a5",
+        });
+        return;
+      }
+
+      if (rememberMe) {
+        localStorage.setItem("rememberedEmail", correo.trim());
+      } else {
+        localStorage.removeItem("rememberedEmail");
+      }
+
+      Swal.fire({
+        title: "¡Bienvenido!",
+        text: "Acceso concedido al portal del alumno",
+        icon: "success",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+      window.location.replace("/Dashboard");
+    } catch (err) {
+      console.error(err);
+      Swal.fire({
+        icon: "error",
+        title: "Oops...",
+        text: "Ocurrió un error inesperado.",
+        confirmButtonColor: "#6b21a5",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!correo.trim()) {
+      Swal.fire({
+        icon: "info",
+        title: "Correo requerido",
+        text: "Ingresa tu correo electrónico para restablecer la contraseña.",
+        confirmButtonColor: "#6b21a5",
+      });
+      return;
+    }
+    if (!validateEmail(correo)) {
+      Swal.fire({
+        icon: "warning",
+        title: "Correo no válido",
+        text: "El correo debe comenzar con 'alu.'",
+        confirmButtonColor: "#6b21a5",
+      });
+      return;
+    }
+
+    const { error } = await supabase.auth.resetPasswordForEmail(correo.trim(), {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    if (error) {
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: error.message,
+        confirmButtonColor: "#6b21a5",
+      });
+    } else {
+      Swal.fire({
+        icon: "success",
+        title: "Correo enviado",
+        text: "Revisa tu bandeja de entrada.",
+        confirmButtonColor: "#6b21a5",
+      });
+    }
+  };
+
+  return (
+    <main className="min-h-screen bg-gradient-to-tr from-purple-950 to-purple-700 flex items-center justify-center px-4 py-8">
+      <div className="w-full max-w-md animate-fadeIn">
+        <div className="bg-white rounded-2xl shadow-2xl p-6 md:p-8 transition-all">
+          {/* Logo con fondo blanco */}
+          <div className="flex justify-center mb-6">
+            <div className="bg-white rounded-full p-3 shadow-md">
+              <img src={logo} alt="Logo Escolar" className="h-16 w-auto md:h-20" />
+            </div>
+          </div>
+
+          <h1 className="text-2xl md:text-3xl font-extrabold text-center bg-gradient-to-r from-purple-900 to-purple-700 bg-clip-text text-transparent">
+            Portal del Alumno
+          </h1>
+          <p className="text-purple-600 text-center text-sm mt-1 mb-6">
+            Accede a tus recursos escolares
+          </p>
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Correo con validación */}
+            <div className="space-y-1">
+              <label className="block text-sm font-semibold text-purple-800 ml-1">
+                Correo electrónico (debe comenzar con alu.)
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Mail className="h-5 w-5 text-purple-400" />
+                </div>
+                <input
+                  type="email"
+                  className={`w-full pl-10 pr-3 py-2.5 rounded-xl border ${
+                    emailError ? "border-red-500 ring-1 ring-red-500" : "border-purple-200"
+                  } focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent transition`}
+                  placeholder="alu.tunombre@itbridge.edu.mx"
+                  value={correo}
+                  onChange={handleEmailChange}
+                  required
+                />
+              </div>
+              {emailError && (
+                <div className="flex items-center gap-1 text-xs text-red-600 mt-1">
+                  <AlertCircle size={14} />
+                  <span>{emailError}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Contraseña */}
+            <div className="space-y-1">
+              <label className="block text-sm font-semibold text-purple-800 ml-1">
+                Contraseña
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Key className="h-5 w-5 text-purple-400" />
+                </div>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent transition"
+                  placeholder="••••••••"
+                  value={contrasena}
+                  onChange={(e) => setContrasena(e.target.value)}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-purple-500 hover:text-purple-700"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+
+            {/* Recordar y Olvidé */}
+            
+
+            {/* Botón de ingreso */}
+            <button
+              type="submit"
+              disabled={loading || !!emailError}
+              className="w-full bg-gradient-to-r from-purple-700 to-purple-900 hover:from-purple-800 hover:to-purple-950 text-white font-bold py-2.5 rounded-xl shadow-lg transition-all duration-200 transform hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:scale-100"
+            >
+              {loading ? (
+                <>
+                  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Ingresando...
+                </>
+              ) : (
+                <>
+                  <LogIn size={20} />
+                  Ingresar
+                </>
+              )}
+            </button>
+          </form>
+
+          <div className="mt-8 text-center">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-purple-200"></div>
+              </div>
+              <div className="relative flex justify-center text-xs">
+                <span className="bg-white px-3 py-1 rounded-full text-purple-500">
+                  Sistema escolar seguro
+                </span>
+              </div>
+            </div>
+            <p className="text-xs text-purple-400 mt-4 flex items-center justify-center gap-1">
+              <GraduationCap size={14} />
+              Acceso exclusivo para alumnos con correo institucional (alu.*)
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fadeIn {
+          animation: fadeIn 0.4s ease-out;
+        }
+      `}</style>
+    </main>
+  );
+}
